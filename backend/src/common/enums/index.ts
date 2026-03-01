@@ -1,0 +1,34 @@
+export enum AuthProvider {
+  EMAIL = 'EMAIL',
+  GOOGLE = 'GOOGLE',
+}
+
+export enum ChallengeStatus {
+  PENDING_ACCEPTANCE = 'PENDING_ACCEPTANCE',
+  ACTIVE = 'ACTIVE',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  EXPIRED = 'EXPIRED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum CoinTxType {
+  CHALLENGE_CREATED = 'CHALLENGE_CREATED',
+  CHALLENGE_COMPLETED = 'CHALLENGE_COMPLETED',
+  CHALLENGE_CANCELLED = 'CHALLENGE_CANCELLED',
+  SIGNUP_BONUS = 'SIGNUP_BONUS',
+  ADMIN_GRANT = 'ADMIN_GRANT',
+  ADMIN_DEDUCT = 'ADMIN_DEDUCT',
+}
+
+export enum ValidationResult {
+  PASS = 'PASS',
+  FAIL = 'FAIL',
+  ERROR = 'ERROR',
+  DEFERRED = 'DEFERRED',
+}
+
+export enum UserRole {
+  USER = 'USER',
+  ADMIN = 'ADMIN',
+}
