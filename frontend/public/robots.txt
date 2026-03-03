@@ -1,0 +1,19 @@
+User-agent: *
+
+# Páginas públicas indexables
+Allow: /
+Allow: /auth/login
+Allow: /auth/register
+
+# Rutas privadas — requieren autenticación, no indexar
+Disallow: /app/
+Disallow: /onboarding/
+
+# Archivos de sistema Next.js
+Disallow: /_next/
+Disallow: /api/
+
+Sitemap: https://lolretos.com/sitemap.xml
+
+# Crawl-delay suave para no sobrecargar
+Crawl-delay: 10

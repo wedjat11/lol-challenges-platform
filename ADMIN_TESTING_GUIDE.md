@@ -3,11 +3,13 @@
 ## Setup
 
 1. Start the backend server:
+
    ```bash
    npm run start:dev
    ```
 
 2. Create an admin user in the database:
+
    ```bash
    # Login to PostgreSQL
    psql lolchallenge
@@ -17,6 +19,7 @@
    ```
 
    Or create a new admin user:
+
    ```sql
    INSERT INTO users (id, username, email, password_hash, auth_provider, role, is_active, balance, created_at, updated_at)
    VALUES (
@@ -287,6 +290,7 @@ psql lolchallenge -c "SELECT name, reward_formula, is_active FROM challenge_temp
 ## Expected Error Responses
 
 ### 403 - Admin Required
+
 ```json
 {
   "statusCode": 403,
@@ -296,6 +300,7 @@ psql lolchallenge -c "SELECT name, reward_formula, is_active FROM challenge_temp
 ```
 
 ### 404 - User/Template Not Found
+
 ```json
 {
   "statusCode": 404,
@@ -305,6 +310,7 @@ psql lolchallenge -c "SELECT name, reward_formula, is_active FROM challenge_temp
 ```
 
 ### 422 - Insufficient Funds
+
 ```json
 {
   "statusCode": 422,
@@ -314,6 +320,7 @@ psql lolchallenge -c "SELECT name, reward_formula, is_active FROM challenge_temp
 ```
 
 ### 409 - Conflict (Duplicate validatorKey)
+
 ```json
 {
   "statusCode": 409,

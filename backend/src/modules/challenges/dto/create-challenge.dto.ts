@@ -1,4 +1,4 @@
-import { IsUUID, IsObject, IsNumber, IsOptional, IsDateString, Min } from 'class-validator';
+import { IsUUID, IsObject, IsOptional, IsDateString } from 'class-validator';
 
 export class CreateChallengeDto {
   @IsUUID()
@@ -9,10 +9,6 @@ export class CreateChallengeDto {
 
   @IsObject()
   params: Record<string, unknown>;
-
-  @IsNumber()
-  @Min(1)
-  rewardAmount: number;
 
   @IsOptional()
   @IsDateString()

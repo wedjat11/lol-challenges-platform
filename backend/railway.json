@@ -10,7 +10,11 @@
     "restartPolicyWindowSeconds": 60,
     "healthchecks": {
       "liveness": {
-        "command": ["node", "-e", "require('http').get('http://localhost:3001/v1/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"],
+        "command": [
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3001/v1/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
+        ],
         "interval": 10,
         "timeout": 5,
         "initialDelay": 30,

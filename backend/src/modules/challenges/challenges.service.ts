@@ -16,6 +16,37 @@ import { EconomyService } from '@/modules/economy/economy.service';
 import { EconomyConfig } from '@/config';
 import { CreateChallengeDto } from './dto/create-challenge.dto';
 
+function evaluateRewardFormula(formula: string, params: Record<string, unknown>): number {
+  let expression = formula.trim();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'number') {
+      expression = expression.replace(new RegExp(`\\b${key}\\b`, 'g'), String(value));
+    }
+  }
+
+  // Only allow simple "number op number" or just "number" expressions
+  const single = /^(\d+(?:\.\d+)?)$/.exec(expression);
+  if (single) {
+    return Math.max(1, Math.floor(parseFloat(single[1])));
+  }
+
+  const binary = /^(\d+(?:\.\d+)?)\s*([\+\-\*\/])\s*(\d+(?:\.\d+)?)$/.exec(expression);
+  if (binary) {
+    const left = parseFloat(binary[1]);
+    const op = binary[2];
+    const right = parseFloat(binary[3]);
+    let result: number;
+    if (op === '*') result = left * right;
+    else if (op === '/') result = right !== 0 ? left / right : 1;
+    else if (op === '+') result = left + right;
+    else result = left - right;
+    return Math.max(1, Math.floor(result));
+  }
+
+  return 1;
+}
+
 @Injectable()
 export class ChallengesService {
   constructor(
@@ -48,13 +79,15 @@ export class ChallengesService {
       throw new NotFoundException('Challenge template not found');
     }
 
+    const rewardAmount = evaluateRewardFormula(template.rewardFormula, dto.params);
+
     // Create challenge first to get the ID
     const challenge = this.challengeRepository.create({
       creatorId,
       targetId: dto.targetId,
       templateId: dto.templateId,
       params: dto.params,
-      rewardAmount: dto.rewardAmount,
+      rewardAmount,
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
     });
 

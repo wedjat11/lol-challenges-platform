@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-base: #080B11;
+    --bg-surface: #0D1117;
+    --border: #1C2333;
+    --text-primary: #F0F2F5;
+    --text-secondary: #6B7280;
+    --gold: #C89B3C;
+    --blue-accent: #3B82F6;
+  }
+
+  body {
+    @apply bg-[#080B11] text-[#F0F2F5];
+    font-family: var(--font-inter), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-syne), system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  /* Legacy glass — keep for app interior */
+  .glass {
+    @apply bg-white/10 backdrop-blur-md border border-white/20 rounded-lg;
+  }
+
+  .glass-card {
+    @apply glass p-6 md:p-8;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 relative;
+  }
+
+  .btn-primary {
+    @apply btn border border-[#C89B3C] text-[#C89B3C] bg-transparent
+           hover:bg-[#C89B3C]/10 active:scale-95
+           tracking-wide;
+  }
+
+  .btn-secondary {
+    @apply btn bg-[#0D1117] border border-[#1C2333] text-[#F0F2F5]
+           hover:border-[#C89B3C]/40 active:scale-95;
+  }
+
+  .btn-ghost {
+    @apply btn text-[#6B7280] hover:text-[#F0F2F5] hover:bg-white/5;
+  }
+
+  .btn-sm  { @apply px-3 py-1.5 text-sm; }
+  .btn-md  { @apply px-4 py-2.5 text-base; }
+  .btn-lg  { @apply px-6 py-3 text-lg; }
+
+  .btn:disabled {
+    @apply opacity-40 cursor-not-allowed;
+  }
+
+  /* Inputs */
+  .input-base {
+    @apply w-full px-4 py-3 bg-[#0D1117] border border-[#1C2333] rounded-lg
+           text-[#F0F2F5] placeholder-[#6B7280]
+           focus:outline-none focus:border-[#3B82F6] focus:ring-2 focus:ring-[#3B82F6]/20
+           transition-all duration-300;
+  }
+
+  .input-error {
+    @apply border-red-500 focus:border-red-500 focus:ring-red-500/20;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-[#6B7280] mb-2;
+  }
+
+  .error-text {
+    @apply text-red-400 text-xs mt-1;
+  }
+
+  .divider {
+    @apply flex items-center gap-4 my-6;
+  }
+
+  .divider::before,
+  .divider::after {
+    @apply flex-1 h-px;
+    content: '';
+    background: linear-gradient(to right, transparent, rgba(200, 155, 60, 0.2), transparent);
+  }
+
+  .link-gold {
+    @apply text-[#C89B3C] hover:text-[#d4a94a] transition-colors;
+  }
+
+  /* Landing-specific utilities */
+  .font-syne {
+    font-family: var(--font-syne), system-ui, sans-serif;
+  }
+
+  .section-border-top {
+    border-top: 1px solid #1C2333;
+  }
+
+  .section-border-bottom {
+    border-bottom: 1px solid #1C2333;
+  }
+}
