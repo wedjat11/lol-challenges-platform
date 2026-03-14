@@ -22,8 +22,13 @@ export function Footer() {
           </Link>
         </nav>
 
-        {/* Copyright */}
-        <p className="text-xs text-[#6B7280]">© 2026 LoL Retos</p>
+        {/* Copyright + disclaimer */}
+        <div className="flex flex-col items-center md:items-end gap-1">
+          <p className="text-xs text-[#6B7280]">© 2026 LoL Retos</p>
+          <p className="text-[10px] text-[#374151] text-center md:text-right">
+            No afiliado ni aprobado por Riot Games. League of Legends es marca registrada de Riot Games, Inc.
+          </p>
+        </div>
       </div>
     </footer>
   );

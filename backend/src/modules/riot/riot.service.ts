@@ -23,10 +23,35 @@ export interface RiotMatch {
       puuid: string;
       championId: number;
       championName: string;
+      teamId: number;
       kills: number;
       deaths: number;
       assists: number;
       win: boolean;
+      // Combat
+      totalDamageDealtToChampions: number;
+      damageSelfMitigated: number;
+      firstBloodKill: boolean;
+      doubleKills: number;
+      tripleKills: number;
+      quadraKills: number;
+      pentaKills: number;
+      // Economy & macro
+      goldEarned: number;
+      totalMinionsKilled: number;
+      neutralMinionsKilled: number;
+      turretKills: number;
+      // Utility
+      visionScore: number;
+      // Advanced stats (Match V5 challenges object — optional)
+      challenges?: {
+        turretTakedowns?: number;
+        dragonTakedowns?: number;
+        baronTakedowns?: number;
+        riftHeraldTakedowns?: number;
+        enemyJungleMonsterKills?: number;
+        killParticipation?: number;
+      };
     }>;
   };
 }
@@ -48,6 +73,12 @@ export class RiotService {
 
     const response = await this.makeRequest<RiotAccount>(url);
     return response;
+  }
+
+  async getSummonerByPuuid(puuid: string): Promise<{ profileIconId: number; summonerLevel: number }> {
+    const url = `${this.config.baseUrl}/lol/summoner/v4/summoners/by-puuid/${puuid}`;
+    const data = await this.makeRequest<{ profileIconId: number; summonerLevel: number }>(url);
+    return { profileIconId: data.profileIconId, summonerLevel: data.summonerLevel };
   }
 
   async getMatchIds(puuid: string, count = 20, queue?: number): Promise<string[]> {

@@ -22,6 +22,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { logout, isAuthenticated, isLoading } = useAuth();
+  const handleLogout = () => { void logout(); };
   const { data: balanceData } = useBalance();
 
   useEffect(() => {
@@ -121,7 +122,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
           {/* Logout */}
           <button
-            onClick={logout}
+            onClick={handleLogout}
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#6B7280]
                        hover:bg-white/[0.04] hover:text-[#F0F2F5] transition-colors duration-150
                        font-inter w-full"
@@ -190,7 +191,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           );
         })}
         <button
-          onClick={logout}
+          onClick={handleLogout}
           className="flex flex-col items-center gap-1 px-4 py-2 rounded-lg min-w-[56px] min-h-[44px] justify-center
                      text-[#6B7280] hover:text-[#F0F2F5] transition-colors duration-150"
         >

@@ -39,6 +39,8 @@ interface UserSearchResult {
   riotAccount: {
     gameName: string;
     tagLine: string;
+    profileIconId: number | null;
+    summonerLevel: number | null;
   };
 }
 
@@ -112,6 +114,30 @@ export class UsersController {
     return this.usersService.linkRiotAccount(user.id, dto);
   }
 
+  @Patch('me/username')
+  @HttpCode(HttpStatus.OK)
+  async updateUsername(
+    @CurrentUser() user: User,
+    @Body('username') username: string,
+  ): Promise<void> {
+    return this.usersService.updateUsername(user.id, username);
+  }
+
+  @Get('check-username')
+  async checkUsername(
+    @Query('username') username: string,
+    @CurrentUser() user: User,
+  ): Promise<{ available: boolean }> {
+    return this.usersService.checkUsernameAvailability(username, user.id);
+  }
+
+  @Get('riot-lookup')
+  async riotLookup(
+    @Query('q') q: string,
+  ): Promise<{ puuid: string; gameName: string; tagLine: string; profileIconId: number | null }> {
+    return this.usersService.lookupRiotAccount(q);
+  }
+
   @Patch('me/riot-account')
   @HttpCode(HttpStatus.OK)
   async updateRiotAccount(
@@ -140,6 +166,8 @@ export class UsersController {
       riotAccount: {
         gameName: u.riotAccount.gameName,
         tagLine: u.riotAccount.tagLine,
+        profileIconId: u.riotAccount.profileIconId ?? null,
+        summonerLevel: u.riotAccount.summonerLevel ?? null,
       },
     }));
   }

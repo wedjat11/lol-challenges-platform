@@ -7,7 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { User, RiotAccount } from './entities';
-import { RiotService } from '@/modules/riot/riot.service';
+import { RiotService, RiotAccount as RiotAccountData } from '@/modules/riot/riot.service';
 import { LinkRiotAccountDto } from './dto';
 
 interface RiotAccountResponse {
@@ -16,6 +16,8 @@ interface RiotAccountResponse {
   tagLine: string;
   region: string;
   isVerified: boolean;
+  profileIconId: number | null;
+  summonerLevel: number | null;
 }
 
 @Injectable()
@@ -77,10 +79,11 @@ export class UsersService {
         });
       }
     } else {
-      // Search by username (partial match)
-      queryBuilder.andWhere('LOWER(user.username) LIKE LOWER(:query)', {
-        query: `%${query}%`,
-      });
+      // Search by username OR gameName (partial match on both)
+      queryBuilder.andWhere(
+        '(LOWER(user.username) LIKE LOWER(:query) OR LOWER(riotAccount.gameName) LIKE LOWER(:query))',
+        { query: `%${query}%` },
+      );
     }
 
     return queryBuilder.limit(20).getMany();
@@ -136,6 +139,72 @@ export class UsersService {
     return this.verifyAndLinkRiotAccount(userId, dto, true);
   }
 
+  async updateUsername(userId: string, username: string): Promise<void> {
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'INVALID_USERNAME',
+        message: 'El nombre de usuario debe tener 3-20 caracteres (letras, números y guiones bajos)',
+      });
+    }
+
+    const existing = await this.userRepository.findOne({ where: { username } });
+    if (existing && existing.id !== userId) {
+      throw new ConflictException({
+        statusCode: 409,
+        code: 'USERNAME_EXISTS',
+        message: 'Ese nombre de usuario ya está en uso',
+      });
+    }
+
+    await this.userRepository.update(userId, { username });
+  }
+
+  async checkUsernameAvailability(
+    username: string,
+    currentUserId: string,
+  ): Promise<{ available: boolean }> {
+    if (!username || !/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+      return { available: false };
+    }
+    const existing = await this.userRepository.findOne({ where: { username } });
+    return { available: !existing || existing.id === currentUserId };
+  }
+
+  async lookupRiotAccount(q: string): Promise<RiotAccountData & { profileIconId: number | null }> {
+    if (!q || q.trim().length < 2) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'MISSING_PARAMS',
+        message: 'Query is required (min 2 chars)',
+      });
+    }
+
+    let gameName: string;
+    let tagLine: string;
+
+    if (q.includes('#')) {
+      const idx = q.indexOf('#');
+      gameName = q.slice(0, idx).trim();
+      tagLine = q.slice(idx + 1).trim().toUpperCase();
+    } else {
+      gameName = q.trim();
+      tagLine = 'LAN'; // default tag for LA1 region
+    }
+
+    const account = await this.riotService.getAccountByRiotId(gameName, tagLine);
+
+    let profileIconId: number | null = null;
+    try {
+      const summoner = await this.riotService.getSummonerByPuuid(account.puuid);
+      profileIconId = summoner.profileIconId;
+    } catch {
+      // non-critical — proceed without icon
+    }
+
+    return { ...account, profileIconId };
+  }
+
   private async verifyAndLinkRiotAccount(
     userId: string,
     dto: LinkRiotAccountDto,
@@ -178,6 +247,17 @@ export class UsersService {
       });
     }
 
+    // Fetch summoner profile (icon + level) — non-blocking, failures are silenced
+    let profileIconId: number | null = null;
+    let summonerLevel: number | null = null;
+    try {
+      const summoner = await this.riotService.getSummonerByPuuid(riotAccountData.puuid);
+      profileIconId = summoner.profileIconId;
+      summonerLevel = summoner.summonerLevel;
+    } catch {
+      // Summoner endpoint failure is non-critical — proceed without icon
+    }
+
     // Link or update the account in a transaction
     await this.dataSource.transaction(async (manager) => {
       if (isUpdate) {
@@ -194,6 +274,8 @@ export class UsersService {
         region: 'LA1',
         isVerified: true,
         verifiedAt: new Date(),
+        profileIconId,
+        summonerLevel,
       });
 
       await manager.getRepository(RiotAccount).save(riotAccount);
@@ -210,6 +292,8 @@ export class UsersService {
       tagLine: riotAccountData.tagLine,
       region: 'LA1',
       isVerified: true,
+      profileIconId,
+      summonerLevel,
     };
   }
 }

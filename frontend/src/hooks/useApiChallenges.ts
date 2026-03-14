@@ -21,6 +21,8 @@ export interface RiotAccount {
   tagLine: string;
   region: string;
   isVerified: boolean;
+  profileIconId?: number | null;
+  summonerLevel?: number | null;
 }
 
 export interface ChallengeUser {
@@ -45,6 +47,7 @@ export interface ParamSchemaProperty {
   minimum?: number;
   maximum?: number;
   description?: string;
+  enum?: string[];
 }
 
 export interface ParamSchema {
@@ -123,7 +126,12 @@ export interface CreateChallengeInput {
   targetId: string;
   templateId: string;
   params: Record<string, unknown>;
-  expiresAt?: string;
+  /**
+   * Duration in days: 7 | 14 | 21 | 28.
+   * Minimum depends on game count in params (1–5 games → 7d, 6+ games → 14d).
+   * The countdown starts from acceptedAt, NOT createdAt.
+   */
+  durationDays: number;
 }
 
 export interface UpdateRiotAccountInput {
@@ -143,6 +151,11 @@ function normalizeListResponse(data: unknown): ChallengeListResponse {
 function normalizeTransactionResponse(data: unknown): TransactionListResponse {
   if (Array.isArray(data)) {
     return { items: data as Transaction[] };
+  }
+  const obj = data as Record<string, unknown>;
+  // Backend returns { transactions: [...], total, limit, offset }
+  if (Array.isArray(obj.transactions)) {
+    return { items: obj.transactions as Transaction[] };
   }
   return data as TransactionListResponse;
 }
@@ -320,7 +333,7 @@ export function useSearchUsers(query: string) {
       );
       return res.data as ChallengeUser[];
     },
-    enabled: query.length >= 2,
+    enabled: query.length >= 3,
   });
 }
 

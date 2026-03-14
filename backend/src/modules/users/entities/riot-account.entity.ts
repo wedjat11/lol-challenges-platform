@@ -29,6 +29,12 @@ export class RiotAccount {
   @Column({ type: 'varchar', length: 10 })
   region: string;
 
+  @Column({ type: 'int', nullable: true, name: 'profile_icon_id' })
+  profileIconId: number | null;
+
+  @Column({ type: 'int', nullable: true, name: 'summoner_level' })
+  summonerLevel: number | null;
+
   @Column({ type: 'boolean', default: false, name: 'is_verified' })
   isVerified: boolean;
 

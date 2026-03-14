@@ -3,16 +3,24 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig } from "axios";
 // Store tokens in memory only (NOT localStorage)
 let accessToken: string | null = null;
 
+// Clerk getToken injected by AuthContext on mount — avoids React hooks in this module
+let clerkGetToken: (() => Promise<string | null>) | null = null;
+
+export function setClerkGetToken(fn: () => Promise<string | null>): void {
+  clerkGetToken = fn;
+}
+
 /**
- * HTTP client for communicating with backend API
- * Handles authentication, automatic token refresh on 401
+ * HTTP client for communicating with backend API.
+ * Auth tokens come from the backend JWT (in memory).
+ * On 401, re-exchanges a fresh Clerk session token for a new backend JWT.
  */
 class ApiClient {
   private client: AxiosInstance;
   private isRefreshing = false;
   private failedQueue: Array<{
     resolve: (token: string) => void;
-    reject: (error: any) => void;
+    reject: (error: unknown) => void;
   }> = [];
 
   constructor() {
@@ -21,10 +29,11 @@ class ApiClient {
 
     this.client = axios.create({
       baseURL,
-      withCredentials: true, // Include cookies for refresh token
+      withCredentials: true,
+      timeout: 10000,
     });
 
-    // Request interceptor: add Bearer token to Authorization header
+    // Attach backend JWT to every request
     this.client.interceptors.request.use(
       (config: InternalAxiosRequestConfig) => {
         if (accessToken) {
@@ -35,16 +44,20 @@ class ApiClient {
       (error) => Promise.reject(error),
     );
 
-    // Response interceptor: handle 401 and attempt token refresh
+    // On 401: exchange a fresh Clerk token for a new backend JWT and retry
     this.client.interceptors.response.use(
       (response) => response,
       async (error) => {
         const originalRequest = error.config;
+        const isClerkSyncEndpoint = (originalRequest.url ?? "").includes(
+          "/auth/clerk-sync",
+        );
 
-        // If 401 and not already retrying, and not the refresh endpoint itself
-        const isRefreshEndpoint = (originalRequest.url ?? '').includes('/auth/refresh');
-        if (error.response?.status === 401 && !originalRequest._retry && !isRefreshEndpoint) {
-          // Prevent multiple simultaneous refresh attempts
+        if (
+          error.response?.status === 401 &&
+          !originalRequest._retry &&
+          !isClerkSyncEndpoint
+        ) {
           if (this.isRefreshing) {
             return new Promise((resolve, reject) => {
               this.failedQueue.push({ resolve, reject });
@@ -60,26 +73,30 @@ class ApiClient {
           this.isRefreshing = true;
 
           try {
-            // Request new access token via refresh endpoint
-            const response = await this.client.post("/auth/refresh");
-            const newToken = response.data.accessToken;
+            if (!clerkGetToken) {
+              throw new Error("Clerk not initialized");
+            }
 
-            // Update in-memory token
+            const clerkToken = await clerkGetToken();
+            if (!clerkToken) {
+              throw new Error("No Clerk session token available");
+            }
+
+            const response = await this.client.post("/auth/clerk-sync", {
+              clerkToken,
+            });
+            const newToken = response.data.accessToken as string;
+
             this.setAccessToken(newToken);
-
-            // Retry failed requests with new token
             this.failedQueue.forEach(({ resolve }) => resolve(newToken));
             this.failedQueue = [];
 
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
             return this.client(originalRequest);
           } catch (refreshError) {
-            // Refresh failed - likely need to login again
             this.clearAccessToken();
             this.failedQueue.forEach(({ reject }) => reject(refreshError));
             this.failedQueue = [];
-
-            // Redirect to login (handled by calling component)
             return Promise.reject(refreshError);
           } finally {
             this.isRefreshing = false;
@@ -91,55 +108,41 @@ class ApiClient {
     );
   }
 
-  /**
-   * Set access token in memory
-   */
   public setAccessToken(token: string): void {
     accessToken = token;
   }
 
-  /**
-   * Get current access token
-   */
   public getAccessToken(): string | null {
     return accessToken;
   }
 
-  /**
-   * Clear access token (on logout)
-   */
   public clearAccessToken(): void {
     accessToken = null;
   }
 
-  /**
-   * Check if user is authenticated
-   */
   public isAuthenticated(): boolean {
     return accessToken !== null;
   }
 
-  // Proxy methods for common HTTP verbs
-  public get(url: string, config?: any) {
+  public get(url: string, config?: object) {
     return this.client.get(url, config);
   }
 
-  public post(url: string, data?: any, config?: any) {
+  public post(url: string, data?: unknown, config?: object) {
     return this.client.post(url, data, config);
   }
 
-  public patch(url: string, data?: any, config?: any) {
+  public patch(url: string, data?: unknown, config?: object) {
     return this.client.patch(url, data, config);
   }
 
-  public put(url: string, data?: any, config?: any) {
+  public put(url: string, data?: unknown, config?: object) {
     return this.client.put(url, data, config);
   }
 
-  public delete(url: string, config?: any) {
+  public delete(url: string, config?: object) {
     return this.client.delete(url, config);
   }
 }
 
-// Create singleton instance
 export const apiClient = new ApiClient();

@@ -48,10 +48,23 @@ describe('WinsAnyChampionValidator', () => {
             puuid,
             championName: 'Ahri',
             championId: 84,
+            teamId: 100,
             win,
             kills: 5,
             deaths: 2,
             assists: 10,
+            totalDamageDealtToChampions: 20000,
+            damageSelfMitigated: 15000,
+            firstBloodKill: false,
+            doubleKills: 0,
+            tripleKills: 0,
+            quadraKills: 0,
+            pentaKills: 0,
+            goldEarned: 12000,
+            totalMinionsKilled: 150,
+            neutralMinionsKilled: 20,
+            turretKills: 1,
+            visionScore: 25,
           },
         ],
       },
@@ -128,7 +141,7 @@ describe('WinsAnyChampionValidator', () => {
       const result = validator.evaluate(matches, { games: 1 }, mockContext);
 
       expect(result.snapshot).toBeDefined();
-      expect('winDetails' in result.snapshot).toBe(true);
+      expect('winDetails' in result.snapshot!).toBe(true);
     });
 
     it('should handle empty match list', () => {

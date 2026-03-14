@@ -17,7 +17,49 @@ import { Input } from '@/components/ui/Input';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Duration helpers ─────────────────────────────────────────────────────────
+
+const ALLOWED_DURATION_DAYS = [7, 14, 21, 28] as const;
+type AllowedDurationDays = (typeof ALLOWED_DURATION_DAYS)[number];
+
+const GAMES_PARAM_VALIDATORS = new Set([
+  'immortal',
+  'deathless_streak',
+  'escapist',
+  'multikill_master',
+  'first_blood_king',
+  'visionary',
+  'winning_streak',
+]);
+
+function getMinimumDays(
+  validatorKey: string,
+  params: Record<string, unknown>,
+): 7 | 14 {
+  if (GAMES_PARAM_VALIDATORS.has(validatorKey)) {
+    const g = params.games;
+    const count = typeof g === 'number' && g > 0 ? g : 1;
+    return count >= 6 ? 14 : 7;
+  }
+  return 7;
+}
+
+function getAvailableDurations(
+  validatorKey: string,
+  params: Record<string, unknown>,
+): AllowedDurationDays[] {
+  const min = getMinimumDays(validatorKey, params);
+  return ALLOWED_DURATION_DAYS.filter((d) => d >= min);
+}
+
+const DURATION_LABELS: Record<number, string> = {
+  7: '7 días (1 semana)',
+  14: '14 días (2 semanas)',
+  21: '21 días (3 semanas)',
+  28: '28 días (1 mes)',
+};
+
+// ─── Other helpers ────────────────────────────────────────────────────────────
 
 function safeJsonParse(s: string): Record<string, unknown> {
   try {
@@ -28,10 +70,31 @@ function safeJsonParse(s: string): Record<string, unknown> {
 }
 
 const PARAM_LABELS: Record<string, string> = {
+  // Legacy
   games: 'Número de partidas',
   champion: 'Nombre del campeón',
   assists: 'Número de asistencias',
   kills: 'Número de kills',
+  // New validators
+  max_deaths: 'Máximo de muertes por partida',
+  max_avg_deaths: 'Promedio máximo de muertes',
+  multikill_type: 'Tipo de multikill',
+  damage: 'Daño requerido',
+  kda: 'KDA mínimo requerido',
+  cs_per_min: 'CS por minuto',
+  gold: 'Oro a acumular',
+  towers: 'Torretas a destruir / asistir',
+  monsters: 'Monstruos épicos a cazar',
+  camps: 'Campamentos enemigos a robar',
+  percentage: 'Kill Participation (%)',
+  vision_score: 'Vision Score mínimo',
+};
+
+const MULTIKILL_LABELS: Record<string, string> = {
+  double: 'Double Kill',
+  triple: 'Triple Kill',
+  quadra: 'Cuádruple Kill',
+  penta: 'Penta Kill',
 };
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
@@ -91,6 +154,30 @@ function ParamForm({
         const label = PARAM_LABELS[key] ?? key;
         const current = values[key];
 
+        // String with enum → select dropdown
+        if (prop.type === 'string' && prop.enum) {
+          return (
+            <div key={key}>
+              <label className="label">{label}</label>
+              <select
+                className="input-base"
+                value={typeof current === 'string' ? current : ''}
+                onChange={(e) => onChange(key, e.target.value)}
+              >
+                <option value="" disabled>
+                  Selecciona una opción
+                </option>
+                {prop.enum.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {MULTIKILL_LABELS[opt] ?? opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+          );
+        }
+
+        // Plain string → text input
         if (prop.type === 'string') {
           return (
             <Input
@@ -103,6 +190,7 @@ function ParamForm({
           );
         }
 
+        // Number → number input
         return (
           <div key={key}>
             <label className="label">
@@ -119,6 +207,7 @@ function ParamForm({
               value={typeof current === 'number' ? current : ''}
               min={prop.minimum}
               max={prop.maximum}
+              step={prop.type === 'number' ? 0.1 : 1}
               onChange={(e) => onChange(key, Number(e.target.value))}
             />
           </div>
@@ -145,7 +234,7 @@ function Step1({
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebounced(input.trim()), 300);
+    debounceRef.current = setTimeout(() => setDebounced(input.trim()), 400);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
@@ -158,13 +247,13 @@ function Step1({
           ¿A quién desafías?
         </h2>
         <p className="text-[#a0aec0] text-sm">
-          Busca por nombre de usuario o Riot ID (NOMBRE#TAG)
+          Escribe 3 letras del nombre LoL o el Riot ID completo (NOMBRE#TAG)
         </p>
       </div>
 
       <Input
         label="Buscar jugador"
-        placeholder="ej: Faker o Faker#KR1"
+        placeholder="ej: metroid, Faker#KR1..."
         value={input}
         onChange={(e) => setInput(e.target.value)}
         icon={<span>🔍</span>}
@@ -181,7 +270,7 @@ function Step1({
       )}
 
       {/* Search results */}
-      {debounced.length >= 2 && (
+      {debounced.length >= 3 && (
         <div className="space-y-2">
           {isLoading ? (
             <div className="glass rounded-xl p-4 animate-pulse space-y-3">
@@ -214,24 +303,57 @@ function Step1({
   );
 }
 
+function summonerIconUrl(profileIconId: number | null | undefined): string | null {
+  if (!profileIconId && profileIconId !== 0) return null;
+  return `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/profile-icons/${profileIconId}.jpg`;
+}
+
 function UserRow({ user }: { user: ChallengeUser }) {
+  const iconUrl = summonerIconUrl(user.riotAccount?.profileIconId);
+
   return (
     <div className="flex items-center gap-3">
-      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#c89b3c]/40 to-[#0bc4e3]/40 flex items-center justify-center text-sm font-bold text-white shrink-0">
-        {user.username[0]?.toUpperCase() ?? '?'}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-white text-sm font-medium">{user.username}</p>
-        {user.riotAccount ? (
-          <p className="text-[#a0aec0] text-xs">
-            {user.riotAccount.gameName}#{user.riotAccount.tagLine}
-          </p>
-        ) : (
-          <p className="text-orange-400 text-xs">Sin cuenta Riot</p>
+      <div className="relative w-9 h-9 shrink-0">
+        {iconUrl ? (
+          <img
+            src={iconUrl}
+            alt="Icono invocador"
+            className="w-9 h-9 rounded-full object-cover border border-[#c89b3c]/30"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+              (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty('display', 'flex');
+            }}
+          />
+        ) : null}
+        <div
+          className="w-9 h-9 rounded-full bg-gradient-to-br from-[#c89b3c]/40 to-[#0bc4e3]/40 flex items-center justify-center text-sm font-bold text-white"
+          style={{ display: iconUrl ? 'none' : 'flex' }}
+        >
+          {user.username[0]?.toUpperCase() ?? '?'}
+        </div>
+        {user.riotAccount?.summonerLevel && (
+          <div className="absolute -bottom-1 -right-1 bg-[#080B11] border border-white/10 rounded-sm px-0.5 leading-none">
+            <span className="text-[9px] text-[#C89B3C] font-syne font-bold">
+              {user.riotAccount.summonerLevel}
+            </span>
+          </div>
         )}
       </div>
+
+      <div className="flex-1 min-w-0">
+        {user.riotAccount ? (
+          <p className="text-white text-sm font-medium truncate">
+            {user.riotAccount.gameName}
+            <span className="text-[#6B7280]">#{user.riotAccount.tagLine}</span>
+          </p>
+        ) : (
+          <p className="text-white text-sm font-medium">{user.username}</p>
+        )}
+        <p className="text-[#6B7280] text-xs truncate">{user.username}</p>
+      </div>
+
       {user.hasRiotAccount && (
-        <span className="text-green-400 text-xs shrink-0">✓ Verificado</span>
+        <span className="text-green-400 text-xs shrink-0">✓</span>
       )}
     </div>
   );
@@ -243,25 +365,36 @@ function Step2({
   targetUser,
   selectedTemplateId,
   localParams,
-  useExpiry,
-  expiresAt,
+  durationDays,
   onSelectTemplate,
   onParamChange,
-  onExpiryToggle,
-  onExpiryDateChange,
+  onDurationChange,
 }: {
   targetUser: ChallengeUser | null;
   selectedTemplateId: string;
   localParams: Record<string, unknown>;
-  useExpiry: boolean;
-  expiresAt: string;
+  durationDays: number;
   onSelectTemplate: (t: ChallengeTemplate) => void;
   onParamChange: (key: string, value: unknown) => void;
-  onExpiryToggle: () => void;
-  onExpiryDateChange: (val: string) => void;
+  onDurationChange: (days: number) => void;
 }) {
   const { data: templates, isLoading } = useTemplates();
   const selectedTemplate = templates?.find((t) => t.id === selectedTemplateId);
+
+  const availableDurations = selectedTemplate
+    ? getAvailableDurations(selectedTemplate.validatorKey, localParams)
+    : ALLOWED_DURATION_DAYS;
+
+  const minimumDays = selectedTemplate
+    ? getMinimumDays(selectedTemplate.validatorKey, localParams)
+    : 7;
+
+  // Auto-adjust selected duration if it's below the new minimum
+  useEffect(() => {
+    if (durationDays < minimumDays) {
+      onDurationChange(minimumDays);
+    }
+  }, [minimumDays, durationDays, onDurationChange]);
 
   return (
     <div className="space-y-6">
@@ -320,37 +453,45 @@ function Step2({
         </div>
       )}
 
-      {/* Expiry toggle */}
-      <div className="glass rounded-xl p-4 border border-white/10">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-white text-sm font-medium">
-              Fecha de expiración
-            </p>
-            <p className="text-[#a0aec0] text-xs">Opcional</p>
-          </div>
-          <button
-            onClick={onExpiryToggle}
-            className={`w-11 h-6 rounded-full transition-colors relative ${
-              useExpiry ? 'bg-[#c89b3c]' : 'bg-white/20'
-            }`}
-          >
-            <span
-              className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${
-                useExpiry ? 'left-6' : 'left-1'
-              }`}
-            />
-          </button>
+      {/* Duration dropdown — REQUIRED, replaces old optional expiry */}
+      <div className="glass rounded-xl p-4 border border-white/10 space-y-3">
+        <div>
+          <p className="text-white text-sm font-medium">Tiempo límite</p>
+          <p className="text-[#a0aec0] text-xs mt-0.5">
+            El plazo empieza a contar desde que el destinatario{' '}
+            <span className="text-[#c89b3c] font-medium">acepte el reto</span>,
+            no desde que lo crees.
+          </p>
         </div>
-        {useExpiry && (
-          <input
-            type="datetime-local"
-            className="input-base"
-            value={expiresAt}
-            min={new Date(Date.now() + 3_600_000).toISOString().slice(0, 16)}
-            onChange={(e) => onExpiryDateChange(e.target.value)}
-          />
+
+        {/* Minimum notice */}
+        {selectedTemplate && (
+          <div className="flex items-start gap-2 rounded-lg bg-[#c89b3c]/8 border border-[#c89b3c]/20 px-3 py-2">
+            <span className="text-[#c89b3c] text-sm mt-px">⏱</span>
+            <p className="text-[#c89b3c] text-xs">
+              Este reto requiere mínimo{' '}
+              <strong>{minimumDays} días</strong>
+              {minimumDays === 14
+                ? ' porque necesita 6 o más partidas.'
+                : ' (1 semana natural).'}
+            </p>
+          </div>
         )}
+
+        <div>
+          <label className="label mb-2">Selecciona el plazo</label>
+          <select
+            className="input-base"
+            value={durationDays}
+            onChange={(e) => onDurationChange(Number(e.target.value))}
+          >
+            {availableDurations.map((d) => (
+              <option key={d} value={d}>
+                {DURATION_LABELS[d]}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Reward preview */}
@@ -374,8 +515,7 @@ function Step3({
   targetUser,
   template,
   params,
-  useExpiry,
-  expiresAt,
+  durationDays,
   balance,
   isLoading,
   onSubmit,
@@ -383,8 +523,7 @@ function Step3({
   targetUser: ChallengeUser | null;
   template: ChallengeTemplate | null;
   params: Record<string, unknown>;
-  useExpiry: boolean;
-  expiresAt: string;
+  durationDays: number;
   balance: number;
   isLoading: boolean;
   onSubmit: () => void;
@@ -429,15 +568,35 @@ function Step3({
             <SummaryRow
               key={key}
               label={PARAM_LABELS[key] ?? key}
-              value={String(val)}
+              value={
+                key === 'multikill_type' && typeof val === 'string'
+                  ? (MULTIKILL_LABELS[val] ?? val)
+                  : String(val)
+              }
             />
           ))}
-          {useExpiry && expiresAt && (
-            <SummaryRow
-              label="Expira"
-              value={new Date(expiresAt).toLocaleString('es-ES')}
-            />
-          )}
+          <SummaryRow
+            label="Plazo límite"
+            value={DURATION_LABELS[durationDays] ?? `${durationDays} días`}
+          />
+        </div>
+      </div>
+
+      {/* Timing notice */}
+      <div className="glass rounded-xl p-4 border border-[#3b82f6]/30 bg-[#3b82f6]/5">
+        <div className="flex items-start gap-3">
+          <span className="text-[#3b82f6] text-lg">📅</span>
+          <div>
+            <p className="text-white text-sm font-medium">
+              El plazo empieza cuando acepten
+            </p>
+            <p className="text-[#a0aec0] text-xs mt-1">
+              Los {durationDays} días contarán desde el momento exacto en que{' '}
+              <strong className="text-white">{targetUser.username}</strong>{' '}
+              acepte el reto. Solo se contarán partidas jugadas{' '}
+              <span className="text-[#3b82f6]">después de la aceptación</span>.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -507,11 +666,8 @@ function WizardContent() {
   const [localParams, setLocalParams] = useState<Record<string, unknown>>(
     () => safeJsonParse(searchParams.get('params') ?? '{}'),
   );
-  const [useExpiry, setUseExpiry] = useState(
-    searchParams.get('useExpiry') === '1',
-  );
-  const [expiresAt, setExpiresAt] = useState(
-    searchParams.get('expiresAt') ?? '',
+  const [durationDays, setDurationDays] = useState<number>(
+    Number(searchParams.get('durationDays') ?? '7'),
   );
 
   // Keep local template id in sync when URL changes (e.g. browser back)
@@ -548,7 +704,7 @@ function WizardContent() {
   const handleSelectTemplate = (t: ChallengeTemplate) => {
     setLocalTemplateId(t.id);
     setLocalParams({});
-    // Update URL with templateId (replace — no new history entry)
+    setDurationDays(7); // will auto-adjust via useEffect in Step2
     const sp = buildBaseParams();
     sp.set('step', '2');
     sp.set('templateId', t.id);
@@ -558,9 +714,6 @@ function WizardContent() {
   const handleParamChange = (key: string, value: unknown) => {
     setLocalParams((prev) => ({ ...prev, [key]: value }));
   };
-
-  const handleExpiryToggle = () => setUseExpiry((v) => !v);
-  const handleExpiryDateChange = (val: string) => setExpiresAt(val);
 
   const handleBack = () => router.back();
 
@@ -573,15 +726,16 @@ function WizardContent() {
       showToast('Completa los parámetros del reto', 'info');
       return;
     }
+    if (!durationDays) {
+      showToast('Selecciona el tiempo límite', 'info');
+      return;
+    }
     const sp = new URLSearchParams();
     sp.set('step', '3');
     sp.set('targetId', targetId);
     sp.set('templateId', localTemplateId);
     sp.set('params', JSON.stringify(localParams));
-    if (useExpiry && expiresAt) {
-      sp.set('useExpiry', '1');
-      sp.set('expiresAt', expiresAt);
-    }
+    sp.set('durationDays', String(durationDays));
     router.push(`/app/challenges/new?${sp.toString()}`);
   };
 
@@ -593,10 +747,7 @@ function WizardContent() {
         targetId,
         templateId: localTemplateId,
         params: localParams,
-        expiresAt:
-          useExpiry && expiresAt
-            ? new Date(expiresAt).toISOString()
-            : undefined,
+        durationDays,
       },
       {
         onSuccess: (challenge) => {
@@ -611,6 +762,10 @@ function WizardContent() {
           let msg: string;
           if (raw?.code === 'INSUFFICIENT_FUNDS') {
             msg = 'Balance insuficiente';
+          } else if (raw?.code === 'DURATION_TOO_SHORT') {
+            msg = typeof raw?.message === 'string'
+              ? raw.message
+              : 'El tiempo límite seleccionado es menor al mínimo requerido';
           } else if (Array.isArray(raw?.message)) {
             msg = raw.message.join(', ');
           } else {
@@ -655,12 +810,10 @@ function WizardContent() {
             targetUser={targetUser ?? null}
             selectedTemplateId={localTemplateId}
             localParams={localParams}
-            useExpiry={useExpiry}
-            expiresAt={expiresAt}
+            durationDays={durationDays}
             onSelectTemplate={handleSelectTemplate}
             onParamChange={handleParamChange}
-            onExpiryToggle={handleExpiryToggle}
-            onExpiryDateChange={handleExpiryDateChange}
+            onDurationChange={setDurationDays}
           />
         )}
         {step === 3 && (
@@ -668,8 +821,7 @@ function WizardContent() {
             targetUser={targetUser ?? null}
             template={selectedTemplate}
             params={localParams}
-            useExpiry={useExpiry}
-            expiresAt={expiresAt}
+            durationDays={durationDays}
             balance={balance}
             isLoading={createChallenge.isPending}
             onSubmit={handleSubmit}

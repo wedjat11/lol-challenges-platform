@@ -40,6 +40,14 @@ export class Challenge {
   @Column({ type: 'int', name: 'reward_amount' })
   rewardAmount: number;
 
+  /**
+   * Duration chosen by the creator (7 | 14 | 21 | 28 days).
+   * The deadline is calculated as: expiresAt = acceptedAt + durationDays * 86_400_000 ms
+   * Minimum depends on game count: 1–5 games → 7d, 6+ games → 14d.
+   */
+  @Column({ type: 'int', name: 'duration_days', default: 7 })
+  durationDays: number;
+
   @Column({ type: 'timestamptz', nullable: true, name: 'expires_at' })
   expiresAt: Date | null;
 

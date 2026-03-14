@@ -47,6 +47,8 @@ export class ChallengesController {
     Array<{
       id: string;
       status: string;
+      creatorId: string;
+      targetId: string;
       rewardAmount: number;
       createdAt: Date;
       creator: { id: string; username: string };
@@ -58,6 +60,8 @@ export class ChallengesController {
     return challenges.map((c) => ({
       id: c.id,
       status: c.status,
+      creatorId: c.creatorId,
+      targetId: c.targetId,
       rewardAmount: c.rewardAmount,
       createdAt: c.createdAt,
       creator: { id: c.creator.id, username: c.creator.username },
@@ -73,6 +77,8 @@ export class ChallengesController {
   ): Promise<{
     id: string;
     status: string;
+    creatorId: string;
+    targetId: string;
     params: Record<string, unknown>;
     rewardAmount: number;
     expiresAt: Date | null;
@@ -93,6 +99,8 @@ export class ChallengesController {
     return {
       id: challenge.id,
       status: challenge.status,
+      creatorId: challenge.creatorId,
+      targetId: challenge.targetId,
       params: challenge.params,
       rewardAmount: challenge.rewardAmount,
       expiresAt: challenge.expiresAt,

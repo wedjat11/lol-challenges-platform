@@ -9,6 +9,7 @@ import { FeaturesSection } from "./FeaturesSection";
 import { HorizontalScroll } from "./HorizontalScroll";
 import { CtaSection } from "./CtaSection";
 import { SectionDivider } from "./SectionDivider";
+import { SmoothScroll } from "@/components/ui/SmoothScroll";
 
 // Section order per CLAUDE.md §9:
 // Navbar → ScrollProgress → Hero → Divider → Stats → Divider → Features
@@ -17,6 +18,7 @@ export function LandingPage() {
   const { isAuthenticated, logout } = useAuth();
 
   return (
+    <SmoothScroll>
     <div className="min-h-screen flex flex-col bg-[#080B11]">
       <Navbar isAuthenticated={isAuthenticated} onLogout={logout} />
 
@@ -51,5 +53,6 @@ export function LandingPage() {
 
       <Footer />
     </div>
+    </SmoothScroll>
   );
 }

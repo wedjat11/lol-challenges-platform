@@ -88,6 +88,21 @@ export class AuthController {
     };
   }
 
+  @Post('clerk-sync')
+  @HttpCode(HttpStatus.OK)
+  async clerkSync(
+    @Body() body: { clerkToken: string },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ accessToken: string; user: UserResponse; isNewUser: boolean }> {
+    const result = await this.authService.clerkSync(body.clerkToken);
+    this.setRefreshTokenCookie(res, result.refreshToken);
+    return {
+      accessToken: result.accessToken,
+      user: result.user,
+      isNewUser: result.isNewUser,
+    };
+  }
+
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   logout(@Res({ passthrough: true }) res: Response): void {

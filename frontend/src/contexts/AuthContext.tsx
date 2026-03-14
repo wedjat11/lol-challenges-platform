@@ -1,88 +1,128 @@
 "use client";
 
 import React, { createContext, useState, useEffect, useCallback } from "react";
-import { apiClient } from "@/lib/api";
+import { useAuth as useClerkAuth, useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+import { apiClient, setClerkGetToken } from "@/lib/api";
 
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   hasRiotAccount: boolean;
-  user: any;
-  login: (email: string, password: string) => Promise<void>;
-  register: (data: any) => Promise<void>;
-  logout: () => void;
+  user: Record<string, unknown> | null;
+  logout: () => Promise<void>;
   setHasRiotAccount: (value: boolean) => void;
+  refreshUser: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  // true while we're trying to restore the session on first load
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasRiotAccount, setHasRiotAccount] = useState(false);
-  const [user, setUser] = useState(null);
+  const { isLoaded, isSignedIn, signOut, getToken } = useClerkAuth();
+  const { user: clerkUser } = useUser();
+  const router = useRouter();
 
-  // On mount: always attempt to restore the session from the httpOnly
-  // lol_refresh cookie set by the backend. The access token lives only
-  // in memory and is lost on every page reload, so this refresh call is
-  // the only way to tell whether the user is still logged in.
+  const [hasRiotAccount, setHasRiotAccount] = useState(false);
+  const [user, setUser] = useState<Record<string, unknown> | null>(null);
+  const [isSynced, setIsSynced] = useState(false);
+
+  // Expose Clerk's getToken to the API client for silent re-auth on 401
   useEffect(() => {
-    const restoreSession = async () => {
+    if (isLoaded) {
+      setClerkGetToken(() => getToken());
+    }
+  }, [isLoaded, getToken]);
+
+  // When Clerk signs the user in, exchange the Clerk token for a backend JWT
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    if (!isSignedIn) {
+      // Clerk signed out — clear backend session
+      apiClient.clearAccessToken();
+      setUser(null);
+      setHasRiotAccount(false);
+      setIsSynced(false);
+      return;
+    }
+
+    // Clerk is signed in — exchange for backend JWT
+    const syncWithBackend = async () => {
+      // Safety net: if everything hangs (backend unreachable, no axios timeout hit),
+      // resolve after 12s so the UI never stays stuck forever.
+      const safetyTimer = setTimeout(() => setIsSynced(true), 12000);
+      const done = () => { clearTimeout(safetyTimer); setIsSynced(true); };
       try {
-        const res = await apiClient.post("/auth/refresh");
-        apiClient.setAccessToken(res.data.accessToken);
-        const userRes = await apiClient.get("/users/me");
-        setUser(userRes.data);
-        setHasRiotAccount(userRes.data.hasRiotAccount);
-        setIsAuthenticated(true);
+        const clerkToken = await getToken();
+
+        // getToken() can return null briefly right after sign-in while
+        // the session is being established. Stop the infinite loading state.
+        if (!clerkToken) {
+          done();
+          return;
+        }
+
+        const res = await apiClient.post("/auth/clerk-sync", { clerkToken });
+        apiClient.setAccessToken(res.data.accessToken as string);
+        const backendUser = res.data.user as Record<string, unknown>;
+        const isNewUser = Boolean(res.data.isNewUser);
+        setUser(backendUser);
+        setHasRiotAccount(Boolean(backendUser.hasRiotAccount));
+        done();
+
+        // New user → go to onboarding to set username and link LoL account
+        if (isNewUser) {
+          router.push("/onboarding/link-account");
+        }
       } catch {
-        // Clear in-memory token and the stale cookie so the middleware
-        // doesn't keep redirecting to /app/dashboard on the next navigation.
-        apiClient.clearAccessToken();
-        try { await apiClient.post("/auth/logout"); } catch { /* already invalid */ }
-        setIsAuthenticated(false);
-      } finally {
-        setIsLoading(false);
+        // Backend sync failed (e.g. CLERK_SECRET_KEY not configured)
+        // Fall back to fetching user with the existing token
+        try {
+          const userRes = await apiClient.get("/users/me");
+          const meUser = userRes.data as Record<string, unknown>;
+          setUser(meUser);
+          setHasRiotAccount(Boolean(meUser.hasRiotAccount));
+          done();
+        } catch {
+          done();
+        }
       }
     };
 
-    void restoreSession();
+    void syncWithBackend();
+  }, [isLoaded, isSignedIn, getToken, clerkUser?.id]);
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const res = await apiClient.get("/users/me");
+      const meUser = res.data as Record<string, unknown>;
+      setUser(meUser);
+      setHasRiotAccount(Boolean(meUser.hasRiotAccount));
+    } catch {
+      // ignore — keep existing state
+    }
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await apiClient.post("/auth/login", { email, password });
-    apiClient.setAccessToken(res.data.accessToken);
-    setIsAuthenticated(true);
-    setUser(res.data.user);
-    setHasRiotAccount(res.data.user.hasRiotAccount);
-  }, []);
-
-  const register = useCallback(async (data: any) => {
-    const res = await apiClient.post("/auth/register", data);
-    apiClient.setAccessToken(res.data.accessToken);
-    setIsAuthenticated(true);
-    setUser(res.data.user);
-    setHasRiotAccount(res.data.user.hasRiotAccount);
-  }, []);
-
-  const logout = useCallback(() => {
-    apiClient.post("/auth/logout").catch(() => {});
+  const logout = useCallback(async () => {
+    await signOut();
     apiClient.clearAccessToken();
-    setIsAuthenticated(false);
-    setHasRiotAccount(false);
     setUser(null);
-  }, []);
+    setHasRiotAccount(false);
+    setIsSynced(false);
+  }, [signOut]);
+
+  // isLoading = Clerk still initializing OR Clerk is signed in but not yet synced with backend
+  const isLoading = !isLoaded || (isSignedIn === true && !isSynced);
+  const isAuthenticated = isLoaded && isSignedIn === true && isSynced;
 
   const value: AuthContextType = {
     isAuthenticated,
     isLoading,
     hasRiotAccount,
     user,
-    login,
-    register,
     logout,
     setHasRiotAccount,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

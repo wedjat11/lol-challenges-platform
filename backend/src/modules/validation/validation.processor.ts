@@ -23,6 +23,7 @@ interface ValidationJobData {
 const VALID_QUEUE_IDS = [420, 440, 400]; // Ranked Solo/Duo, Ranked Flex, Normal Draft
 const MIN_GAME_DURATION = 300; // 5 minutes
 const VALID_GAME_MODES = ['CLASSIC', 'RANKED_SOLO', 'RANKED_FLEX'];
+const MAX_ELIGIBLE_MATCHES = 15; // Max sample window per challenge rules
 
 @Processor('challenge-validation')
 export class ValidationProcessor extends WorkerHost implements OnModuleDestroy {
@@ -135,15 +136,18 @@ export class ValidationProcessor extends WorkerHost implements OnModuleDestroy {
         return;
       }
 
-      // Filter matches based on eligibility rules
-      const qualifiedMatches = this.filterEligibleMatches(
+      // Filter matches: gameStartTimestamp (UTC ms) >= acceptedAt (UTC ms) + game mode + duration
+      const allEligible = this.filterEligibleMatches(
         matches,
         challenge.acceptedAt ?? new Date(),
         riotAccount.puuid,
       );
 
+      // Apply sample limit: at most MAX_ELIGIBLE_MATCHES most recent qualifying matches
+      const qualifiedMatches = allEligible.slice(0, MAX_ELIGIBLE_MATCHES);
+
       console.log(
-        `[ValidationWorker] Challenge eligibility: ${matches.length} total matches, ${qualifiedMatches.length} eligible`,
+        `[ValidationWorker] Eligibility: ${matches.length} total → ${allEligible.length} eligible → ${qualifiedMatches.length} sampled (max ${MAX_ELIGIBLE_MATCHES})`,
       );
 
       const validator = this.validatorRegistry.get(challenge.template.validatorKey);

@@ -37,6 +37,9 @@ export class User {
   @Column({ type: 'varchar', length: 255, nullable: true, unique: true, name: 'google_id' })
   googleId: string | null;
 
+  @Column({ type: 'varchar', length: 255, nullable: true, unique: true, name: 'clerk_user_id' })
+  clerkUserId: string | null;
+
   @Column({ type: 'int', default: 0 })
   balance: number;
 

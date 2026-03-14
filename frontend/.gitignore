@@ -31,3 +31,6 @@ yarn-error.log*
 
 # Coverage
 coverage/
+
+# clerk configuration (can include secrets)
+/.clerk/

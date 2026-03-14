@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   ConflictException,
   BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -211,6 +212,95 @@ export class AuthService {
         message: 'Invalid or expired refresh token',
       });
     }
+  }
+
+  async clerkSync(clerkToken: string): Promise<AuthResponseDto & { isNewUser: boolean }> {
+    const secretKey = this.configService.get<string>('CLERK_SECRET_KEY');
+    if (!secretKey) {
+      throw new InternalServerErrorException({
+        code: 'CLERK_NOT_CONFIGURED',
+        message: 'CLERK_SECRET_KEY is not configured on the server',
+      });
+    }
+
+    // Dynamic import to avoid issues if the package is not installed
+    const { verifyToken, createClerkClient } = await import('@clerk/backend');
+
+    let clerkUserId: string;
+    let email: string;
+
+    try {
+      const claims = await verifyToken(clerkToken, { secretKey });
+      clerkUserId = claims.sub;
+
+      const clerkClient = createClerkClient({ secretKey });
+      const clerkUser = await clerkClient.users.getUser(clerkUserId);
+      email = clerkUser.emailAddresses[0]?.emailAddress ?? '';
+    } catch {
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'INVALID_CLERK_TOKEN',
+        message: 'Could not verify Clerk session',
+      });
+    }
+
+    if (!email) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'NO_EMAIL',
+        message: 'Clerk user has no primary email address',
+      });
+    }
+
+    // Find existing user by Clerk ID or email (for migrating existing accounts)
+    let user = await this.userRepository.findOne({
+      where: [{ clerkUserId }, { email }],
+      relations: ['riotAccount'],
+    });
+
+    let isNewUser = false;
+
+    if (!user) {
+      // First time — create DB user and send to onboarding
+      isNewUser = true;
+      const baseUsername = email.split('@')[0]?.replace(/[^a-zA-Z0-9_]/g, '_') ?? 'user';
+      const username = `${baseUsername}_${Date.now().toString().slice(-6)}`;
+
+      const newUser = this.userRepository.create({
+        username,
+        email,
+        clerkUserId,
+        authProvider: AuthProvider.EMAIL,
+        passwordHash: null,
+        hasRiotAccount: false,
+      });
+
+      const savedUser = await this.userRepository.save(newUser);
+      await this.economyService.grantSignupBonus(savedUser.id);
+
+      user = await this.userRepository.findOne({
+        where: { id: savedUser.id },
+        relations: ['riotAccount'],
+      });
+
+      if (!user) {
+        throw new Error('User not found after creation');
+      }
+    } else if (!user.clerkUserId) {
+      // Existing email-based account: link it to Clerk
+      await this.userRepository.update(user.id, { clerkUserId });
+      user.clerkUserId = clerkUserId;
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'ACCOUNT_INACTIVE',
+        message: 'Account is inactive',
+      });
+    }
+
+    return { ...this.generateTokens(user), isNewUser };
   }
 
   private generateTokens(user: User): AuthResponseDto {

@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Syne, Inter } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import { QueryClientProvider } from "@/components/providers/QueryClientProvider";
 import { ToastProvider } from "@/components/ui/Toast";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { SmoothScroll } from "@/components/ui/SmoothScroll";
 import { ScrollProgress } from "@/components/ui/ScrollProgress";
 import "./globals.css";
 
@@ -123,23 +123,25 @@ interface RootLayoutProps {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="es" className={`${syne.variable} ${inter.variable}`}>
-      <head>
-        {/* Preconnect a fuentes y Riot API para mejorar LCP */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      </head>
-      <body className="font-inter">
-        <AuthProvider>
-          <QueryClientProvider>
-            <ToastProvider>
-              {/* Barra de progreso de scroll (gold → blue) */}
-              <ScrollProgress />
-              <SmoothScroll>{children}</SmoothScroll>
-            </ToastProvider>
-          </QueryClientProvider>
-        </AuthProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="es" className={`${syne.variable} ${inter.variable}`}>
+        <head>
+          {/* Preconnect a fuentes y Riot API para mejorar LCP */}
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        </head>
+        <body className="font-inter">
+          <AuthProvider>
+            <QueryClientProvider>
+              <ToastProvider>
+                {/* Barra de progreso de scroll (gold → blue) */}
+                <ScrollProgress />
+                {children}
+              </ToastProvider>
+            </QueryClientProvider>
+          </AuthProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

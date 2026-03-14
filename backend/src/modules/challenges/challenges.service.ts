@@ -15,6 +15,7 @@ import { ChallengeStatus } from '@/common/enums';
 import { EconomyService } from '@/modules/economy/economy.service';
 import { EconomyConfig } from '@/config';
 import { CreateChallengeDto } from './dto/create-challenge.dto';
+import { getMinimumDays } from './utils/challenge-duration.util';
 
 function evaluateRewardFormula(formula: string, params: Record<string, unknown>): number {
   let expression = formula.trim();
@@ -81,14 +82,27 @@ export class ChallengesService {
 
     const rewardAmount = evaluateRewardFormula(template.rewardFormula, dto.params);
 
+    // Validate chosen duration meets the minimum for this challenge type
+    const minimumDays = getMinimumDays(template.validatorKey, dto.params);
+    if (dto.durationDays < minimumDays) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'DURATION_TOO_SHORT',
+        message: `Este reto requiere al menos ${minimumDays} días de plazo. El tiempo cuenta desde que el destinatario acepte el reto.`,
+        details: { minimumDays, provided: dto.durationDays },
+      });
+    }
+
     // Create challenge first to get the ID
+    // Note: expiresAt is NOT set here — it is calculated when the target accepts.
     const challenge = this.challengeRepository.create({
       creatorId,
       targetId: dto.targetId,
       templateId: dto.templateId,
       params: dto.params,
       rewardAmount,
-      expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+      durationDays: dto.durationDays,
+      expiresAt: null,
     });
 
     const savedChallenge = await this.challengeRepository.save(challenge);
@@ -156,7 +170,12 @@ export class ChallengesService {
     }
 
     challenge.status = ChallengeStatus.ACTIVE;
-    challenge.acceptedAt = new Date();
+    const acceptedAt = new Date();
+    challenge.acceptedAt = acceptedAt;
+    // Compute deadline: durationDays natural days starting at acceptance
+    challenge.expiresAt = new Date(
+      acceptedAt.getTime() + challenge.durationDays * 24 * 60 * 60 * 1000,
+    );
 
     return this.challengeRepository.save(challenge);
   }
