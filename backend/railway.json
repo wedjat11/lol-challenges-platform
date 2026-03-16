@@ -1,25 +1,14 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "nixpacks",
-    "buildCommand": "npm run build"
+    "builder": "NIXPACKS",
+    "buildCommand": "npm ci && npm run build"
   },
   "deploy": {
-    "startCommand": "node dist/src/main.js",
-    "restartPolicyMaxRetries": 5,
-    "restartPolicyWindowSeconds": 60,
-    "healthchecks": {
-      "liveness": {
-        "command": [
-          "node",
-          "-e",
-          "require('http').get('http://localhost:3001/v1/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
-        ],
-        "interval": 10,
-        "timeout": 5,
-        "initialDelay": 30,
-        "failureThreshold": 3
-      }
-    }
+    "startCommand": "npm run migration:run && node dist/main",
+    "healthcheckPath": "/v1/health",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
   }
 }

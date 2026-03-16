@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { use, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -300,14 +300,14 @@ function useCooldown() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export default function ChallengeDetailPage({ params }: PageProps) {
+  const { id } = use(params);
   const router = useRouter();
   const { user } = useAuth();
   const { showToast } = useToast();
-  const { id } = params;
 
   const queryClient = useQueryClient();
   const { data: challenge, isLoading, refetch } = useChallenge(id);

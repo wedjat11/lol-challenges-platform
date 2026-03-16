@@ -1,7 +1,11 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Required for Railway: produces .next/standalone/server.js
   output: 'standalone',
+  // Prevent Next.js from guessing the wrong workspace root
+  outputFileTracingRoot: path.join(__dirname, '../'),
 
   reactStrictMode: true,
 
